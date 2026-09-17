@@ -46,13 +46,64 @@ Object.entries(TOPICS).forEach(([key, topic]) => {
   });
 });
 
+// --- IoT seat sensor: on seat empty, auto-complete current token + auto-call next (Option B) ---
+const Counter = require('./models/Counter');
+const {
+  completeTokenById,
+  callNextForCounter
+} = require('./controllers/tokenController');
+
+// Prevent overlapping handling if the sensor fires rapidly
+let handlingSeatEvent = false;
+
+onTopic(TOPICS.SEAT_STATUS, async (payload) => {
+  // We only act when the seat becomes empty; 'occupied' is informational (UI only)
+  if (!payload || payload.state !== 'empty') return;
+  if (handlingSeatEvent) {
+    console.log('[Seat Handler] Already handling a seat event, skipping duplicate.');
+    return;
+  }
+  handlingSeatEvent = true;
+
+  try {
+    const counter = await Counter.findOne({ counterNumber: payload.counterNumber });
+    if (!counter) {
+      console.warn(`[Seat Handler] No counter found for counterNumber ${payload.counterNumber}. Ignoring.`);
+      return;
+    }
+
+    // 1. Complete whoever was being served at this counter (if anyone)
+    if (counter.currentToken) {
+      const completed = await completeTokenById(counter.currentToken);
+      if (completed.token) {
+        console.log(`[Seat Handler] Auto-completed token #${completed.token.tokenNumber} at counter ${counter.counterNumber}`);
+      }
+    }
+
+    // 2. Auto-call the next highest-priority customer to this now-free counter
+    const fresh = await Counter.findById(counter._id); // reload: completeTokenById set it idle
+    const result = await callNextForCounter(fresh);
+    if (result.token) {
+      console.log(`[Seat Handler] Auto-called token #${result.token.tokenNumber} to counter ${counter.counterNumber}`);
+    } else {
+      console.log(`[Seat Handler] Counter ${counter.counterNumber} free but queue is empty.`);
+    }
+  } catch (err) {
+    console.error('[Seat Handler] Error:', err.message);
+  } finally {
+    handlingSeatEvent = false;
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 const { startCrowdSensor } = require('./services/crowdSensor');
 const { startCounterWatcher } = require('./services/counterWatcher');
+const { startSerialBridge } = require('./services/serialBridge');
 
 startCrowdSensor();
 startCounterWatcher();
+startSerialBridge();
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -90,7 +90,80 @@ exports.getQueue = async (req, res) => {
   }
 };
 
-// --- Call the next customer to a specific counter ---
+// --- Core: call the next highest-priority customer to a given counter ---
+// Reusable by both the HTTP route and the seat sensor handler.
+// Returns { token } on success, or { message } when nothing to call.
+async function callNextForCounter(counter) {
+  const waitingTokens = await Token.find({ status: 'waiting' })
+    .populate('customer')
+    .populate('service');
+
+  if (waitingTokens.length === 0) {
+    return { message: 'Queue is empty' };
+  }
+
+  // Recompute priority and pick the highest
+  const scored = waitingTokens.map((token) => ({
+    token,
+    priorityScore: calculatePriority(token, currentCrowdLevel)
+  }));
+  scored.sort((a, b) => b.priorityScore - a.priorityScore);
+
+  const next = scored[0].token;
+
+  next.status = 'called';
+  next.calledAt = new Date();
+  next.priorityScore = scored[0].priorityScore;
+  next.counter = counter._id;
+  await next.save();
+
+  counter.status = 'busy';
+  counter.currentToken = next._id;
+  counter.lastActivityAt = new Date();
+  await counter.save();
+
+  client.publish(TOPICS.TOKEN_CALL, JSON.stringify({
+    tokenId: next._id,
+    tokenNumber: next.tokenNumber,
+    customer: next.customer.name,
+    counter: counter.counterNumber
+  }));
+
+  return { token: next };
+}
+
+// --- Core: complete a token and free its counter ---
+// Reusable by both the HTTP route and the seat sensor handler.
+async function completeTokenById(tokenId) {
+  const token = await Token.findById(tokenId);
+  if (!token) return { error: 'Token not found' };
+
+  token.status = 'completed';
+  token.completedAt = new Date();
+  await token.save();
+
+  if (token.counter) {
+    const counter = await Counter.findById(token.counter);
+    if (counter) {
+      counter.status = 'idle';
+      counter.currentToken = null;
+      counter.lastActivityAt = new Date();
+      await counter.save();
+    }
+  }
+
+  // Bump customer's visit count
+  await Customer.findByIdAndUpdate(token.customer, { $inc: { visitCount: 1 } });
+
+  client.publish(TOPICS.TOKEN_COMPLETE, JSON.stringify({
+    tokenId: token._id,
+    tokenNumber: token.tokenNumber
+  }));
+
+  return { token };
+}
+
+// --- Call the next customer to a specific counter (HTTP) ---
 exports.callNext = async (req, res) => {
   try {
     const { counterId } = req.body;
@@ -98,78 +171,24 @@ exports.callNext = async (req, res) => {
     const counter = await Counter.findById(counterId);
     if (!counter) return res.status(404).json({ error: 'Counter not found' });
 
-    const waitingTokens = await Token.find({ status: 'waiting' })
-      .populate('customer')
-      .populate('service');
+    const result = await callNextForCounter(counter);
+    if (result.message) return res.status(200).json({ message: result.message });
 
-    if (waitingTokens.length === 0) {
-      return res.status(200).json({ message: 'Queue is empty' });
-    }
-
-    // Recompute priority and pick the highest
-    const scored = waitingTokens.map((token) => ({
-      token,
-      priorityScore: calculatePriority(token, currentCrowdLevel)
-    }));
-    scored.sort((a, b) => b.priorityScore - a.priorityScore);
-
-    const next = scored[0].token;
-
-    next.status = 'called';
-    next.calledAt = new Date();
-    next.priorityScore = scored[0].priorityScore;
-    next.counter = counter._id;
-    await next.save();
-
-    counter.status = 'busy';
-    counter.currentToken = next._id;
-    counter.lastActivityAt = new Date();
-    await counter.save();
-
-    client.publish(TOPICS.TOKEN_CALL, JSON.stringify({
-      tokenId: next._id,
-      tokenNumber: next.tokenNumber,
-      customer: next.customer.name,
-      counter: counter.counterNumber
-    }));
-
-    res.json(next);
+    res.json(result.token);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 };
 
-// --- Mark a token's service as complete ---
+// --- Mark a token's service as complete (HTTP) ---
 exports.completeToken = async (req, res) => {
   try {
     const { tokenId } = req.body;
 
-    const token = await Token.findById(tokenId);
-    if (!token) return res.status(404).json({ error: 'Token not found' });
+    const result = await completeTokenById(tokenId);
+    if (result.error) return res.status(404).json({ error: result.error });
 
-    token.status = 'completed';
-    token.completedAt = new Date();
-    await token.save();
-
-    if (token.counter) {
-      const counter = await Counter.findById(token.counter);
-      if (counter) {
-        counter.status = 'idle';
-        counter.currentToken = null;
-        counter.lastActivityAt = new Date();
-        await counter.save();
-      }
-    }
-
-    // Bump customer's visit count
-    await Customer.findByIdAndUpdate(token.customer, { $inc: { visitCount: 1 } });
-
-    client.publish(TOPICS.TOKEN_COMPLETE, JSON.stringify({
-      tokenId: token._id,
-      tokenNumber: token.tokenNumber
-    }));
-
-    res.json(token);
+    res.json(result.token);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -177,3 +196,7 @@ exports.completeToken = async (req, res) => {
 
 exports.setCrowdLevel = setCrowdLevel;
 exports.getCrowdLevel = () => currentCrowdLevel;
+
+// Exported for the seat sensor handler (server.js) to reuse the same flows
+exports.callNextForCounter = callNextForCounter;
+exports.completeTokenById = completeTokenById;
