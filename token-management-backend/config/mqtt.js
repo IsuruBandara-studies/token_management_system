@@ -7,7 +7,8 @@ const TOPICS = {
   TOKEN_CALL: 'token/call',
   TOKEN_COMPLETE: 'token/complete',
   CROWD_LEVEL: 'crowd/level',
-  COUNTER_STATUS: 'counter/status'
+  COUNTER_STATUS: 'counter/status',
+  SEAT_STATUS: 'seat/status'
 };
 
 // Handlers get registered from other files (avoids circular imports)
