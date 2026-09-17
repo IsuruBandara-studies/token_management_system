@@ -1,0 +1,222 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #0d9488;
+  --color-brand-light: #14b8a6;
+  --color-brand-dark: #115e59;
+  --color-brand-muted: #ccfbf1;
+
+  --color-crowd-low: #10b981;
+  --color-crowd-low-bg: #064e3b;
+  --color-crowd-medium: #f59e0b;
+  --color-crowd-medium-bg: #78350f;
+  --color-crowd-high: #ef4444;
+  --color-crowd-high-bg: #7f1d1d;
+
+  --color-status-idle: #0ea5e9;
+  --color-status-idle-bg: #e0f2fe;
+  --color-status-busy: #f97316;
+  --color-status-busy-bg: #ffedd5;
+
+  --color-surface: #f8fafc;
+  --color-surface-raised: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #334155;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #f1f5f9;
+
+  --color-queue-bg: #0a0f1a;
+  --color-queue-panel: #111827;
+  --color-queue-border: #1e293b;
+  --color-queue-accent: #38bdf8;
+
+  --font-display: "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100svh;
+    font-family: var(--font-display);
+    color: var(--color-text);
+    background: var(--color-surface);
+  }
+
+  #root {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@layer components {
+  .nav-link {
+    @apply text-sm text-slate-400 no-underline transition-colors duration-200 hover:text-white;
+  }
+
+  .nav-link-active {
+    @apply text-teal-300;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-teal-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center justify-center rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition-all duration-200 hover:bg-red-50;
+  }
+
+  .btn-success {
+    @apply inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-emerald-700;
+  }
+
+  .form-input {
+    @apply mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-base text-slate-800 shadow-sm transition-colors duration-200 placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-slate-700;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide;
+  }
+
+  .badge-crowd-low {
+    @apply bg-emerald-500/20 text-emerald-300 ring-1 ring-emerald-500/40;
+  }
+
+  .badge-crowd-medium {
+    @apply bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40;
+  }
+
+  .badge-crowd-high {
+    @apply bg-red-500/20 text-red-300 ring-1 ring-red-500/40;
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  .badge-status-idle {
+    @apply bg-sky-100 text-sky-700 ring-1 ring-sky-200;
+  }
+
+  .badge-status-busy {
+    @apply bg-orange-100 text-orange-700 ring-1 ring-orange-200;
+  }
+
+  .panel {
+    @apply rounded-xl border border-slate-200 bg-white p-5 shadow-sm;
+  }
+
+  .error-text {
+    @apply text-sm text-red-600;
+  }
+}
+
+@layer utilities {
+  .animate-slide-in {
+    animation: slideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-token-reveal {
+    animation: tokenReveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-queue-row {
+    animation: queueRowEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-pulse-soft {
+    animation: pulseSoft 2s ease-in-out infinite;
+  }
+
+  .queue-list-transition {
+    transition: opacity 0.25s ease;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tokenReveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes queueRowEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulseSoft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
