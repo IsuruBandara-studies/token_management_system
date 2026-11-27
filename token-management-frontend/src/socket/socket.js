@@ -8,7 +8,7 @@ export const TOPICS = {
   TOKEN_NEW: 'token/new',
   TOKEN_CALL: 'token/call',
   TOKEN_COMPLETE: 'token/complete',
+  CROWD_EVENT: 'crowd/event',
   CROWD_LEVEL: 'crowd/level',
-  COUNTER_STATUS: 'counter/status',
-  SEAT_STATUS: 'seat/status'
+  COUNTER_STATUS: 'counter/status'
 };

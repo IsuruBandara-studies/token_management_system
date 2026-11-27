@@ -4,14 +4,13 @@ import {
   getServices, createService, updateService, deleteService
 } from '../api/api';
 import { socket, TOPICS } from '../socket/socket';
+import CrowdMeter from '../components/CrowdMeter';
 
 function StaffDashboard() {
   const [counters, setCounters] = useState([]);
   const [queue, setQueue] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [actionError, setActionError] = useState('');
-  // Live seat-sensor state keyed by counterNumber: { [counterNumber]: 'empty' | 'occupied' }
-  const [seatStates, setSeatStates] = useState({});
 
   // Add-counter state
   const [newCounterNumber, setNewCounterNumber] = useState('');
@@ -67,19 +66,9 @@ function StaffDashboard() {
     };
     socket.on(TOPICS.COUNTER_STATUS, handleRecommendation);
 
-    // IoT seat sensor: track live empty/occupied per counter, and refresh the
-    // board since an 'empty' event triggers an auto-complete + auto-call on the backend.
-    const handleSeatStatus = (payload) => {
-      if (!payload || payload.counterNumber == null) return;
-      setSeatStates((prev) => ({ ...prev, [payload.counterNumber]: payload.state }));
-      refreshAll();
-    };
-    socket.on(TOPICS.SEAT_STATUS, handleSeatStatus);
-
     return () => {
       refreshEvents.forEach((topic) => socket.off(topic, refreshAll));
       socket.off(TOPICS.COUNTER_STATUS, handleRecommendation);
-      socket.off(TOPICS.SEAT_STATUS, handleSeatStatus);
     };
   }, []);
 
@@ -243,7 +232,12 @@ function StaffDashboard() {
           </div>
         )}
 
-        {/* --- Counters + occupancy (moved to top) --- */}
+        {/* --- Live people counter from the entrance sensor --- */}
+        <section className="mb-6">
+          <CrowdMeter variant="light" showReset />
+        </section>
+
+        {/* --- Counters --- */}
         <section className="mb-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-800">Counters</h2>
@@ -277,25 +271,6 @@ function StaffDashboard() {
                     Counter {counter.counterNumber}
                   </h3>
                   <div className="flex items-center gap-2">
-                    {seatStates[counter.counterNumber] && (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                          seatStates[counter.counterNumber] === 'empty'
-                            ? 'bg-sky-100 text-sky-700'
-                            : 'bg-orange-100 text-orange-700'
-                        }`}
-                        title="Live seat sensor"
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            seatStates[counter.counterNumber] === 'empty'
-                              ? 'bg-sky-500'
-                              : 'bg-orange-500'
-                          }`}
-                        />
-                        Seat {seatStates[counter.counterNumber]}
-                      </span>
-                    )}
                     <span
                       className={`badge ${
                         counter.status === 'idle' ? 'badge-status-idle' : 'badge-status-busy'

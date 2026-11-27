@@ -3,19 +3,18 @@ const Customer = require('../models/Customer');
 const Service = require('../models/Service');
 const Counter = require('../models/Counter');
 const { calculatePriority } = require('../services/priorityService');
-const { client, TOPICS } = require('../config/mqtt');
-const { onTopic } = require('../config/mqtt');
+const { client, TOPICS, onTopic } = require('../config/mqtt');
+const { publishEvent, getState } = require('../services/crowdCounter');
 
-onTopic(TOPICS.CROWD_LEVEL, (payload) => {
-  currentCrowdLevel = payload.level;
-  console.log(`[Token Controller] Crowd level updated to ${payload.level}`);
-});
-
-// Keep track of the latest crowd level in memory (published by the crowd sensor)
-let currentCrowdLevel = 'LOW';
+// Latest crowd level, derived from the IN/OUT counter and used by the priority score
+let currentCrowdLevel = getState().level;
 function setCrowdLevel(level) {
   currentCrowdLevel = level;
 }
+
+onTopic(TOPICS.CROWD_LEVEL, (payload) => {
+  currentCrowdLevel = payload.level;
+});
 
 // --- Create a new token (customer joins the queue) ---
 exports.createToken = async (req, res) => {
@@ -137,6 +136,7 @@ async function callNextForCounter(counter) {
 async function completeTokenById(tokenId) {
   const token = await Token.findById(tokenId);
   if (!token) return { error: 'Token not found' };
+  if (token.status === 'completed') return { token }; // already done; don't double-count OUT
 
   token.status = 'completed';
   token.completedAt = new Date();
@@ -159,6 +159,9 @@ async function completeTokenById(tokenId) {
     tokenId: token._id,
     tokenNumber: token.tokenNumber
   }));
+
+  // Customer has been served and leaves: count them OUT
+  publishEvent('OUT', 'token-complete');
 
   return { token };
 }
