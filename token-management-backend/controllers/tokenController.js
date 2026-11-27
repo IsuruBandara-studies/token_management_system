@@ -3,19 +3,18 @@ const Customer = require('../models/Customer');
 const Service = require('../models/Service');
 const Counter = require('../models/Counter');
 const { calculatePriority } = require('../services/priorityService');
-const { client, TOPICS } = require('../config/mqtt');
-const { onTopic } = require('../config/mqtt');
+const { client, TOPICS, onTopic } = require('../config/mqtt');
+const { publishEvent, getState } = require('../services/crowdCounter');
 
-onTopic(TOPICS.CROWD_LEVEL, (payload) => {
-  currentCrowdLevel = payload.level;
-  console.log(`[Token Controller] Crowd level updated to ${payload.level}`);
-});
-
-// Keep track of the latest crowd level in memory (published by the crowd sensor)
-let currentCrowdLevel = 'LOW';
+// Latest crowd level, derived from the IN/OUT counter and used by the priority score
+let currentCrowdLevel = getState().level;
 function setCrowdLevel(level) {
   currentCrowdLevel = level;
 }
+
+onTopic(TOPICS.CROWD_LEVEL, (payload) => {
+  currentCrowdLevel = payload.level;
+});
 
 // --- Create a new token (customer joins the queue) ---
 exports.createToken = async (req, res) => {
@@ -137,6 +136,7 @@ async function callNextForCounter(counter) {
 async function completeTokenById(tokenId) {
   const token = await Token.findById(tokenId);
   if (!token) return { error: 'Token not found' };
+  if (token.status === 'completed') return { token }; // already done; don't double-count OUT
 
   token.status = 'completed';
   token.completedAt = new Date();
@@ -160,8 +160,57 @@ async function completeTokenById(tokenId) {
     tokenNumber: token.tokenNumber
   }));
 
+  // Customer has been served and leaves: count them OUT
+  publishEvent('OUT', 'token-complete');
+
   return { token };
 }
+
+// --- Core: mark a waiting/called token as no-show (customer left without being served) ---
+async function markNoShowById(tokenId) {
+  const token = await Token.findById(tokenId);
+  if (!token) return { error: 'Token not found', code: 404 };
+  if (token.status !== 'waiting' && token.status !== 'called') {
+    return { error: `Token is already ${token.status}`, code: 400 };
+  }
+
+  token.status = 'no-show';
+  token.completedAt = new Date();
+  await token.save();
+
+  // If it was at a counter, free that counter
+  if (token.counter) {
+    const counter = await Counter.findById(token.counter);
+    if (counter && counter.currentToken && counter.currentToken.toString() === token._id.toString()) {
+      counter.status = 'idle';
+      counter.currentToken = null;
+      counter.lastActivityAt = new Date();
+      await counter.save();
+    }
+  }
+
+  client.publish(TOPICS.TOKEN_NO_SHOW, JSON.stringify({
+    tokenId: token._id,
+    tokenNumber: token.tokenNumber
+  }));
+
+  // The customer has left the building: count them OUT
+  publishEvent('OUT', 'no-show');
+
+  return { token };
+}
+
+// --- Mark a token as no-show (HTTP) ---
+exports.markNoShow = async (req, res) => {
+  try {
+    const { tokenId } = req.body;
+    const result = await markNoShowById(tokenId);
+    if (result.error) return res.status(result.code).json({ error: result.error });
+    res.json(result.token);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
 
 // --- Call the next customer to a specific counter (HTTP) ---
 exports.callNext = async (req, res) => {

@@ -6,16 +6,18 @@ const TOPICS = {
   TOKEN_NEW: 'token/new',
   TOKEN_CALL: 'token/call',
   TOKEN_COMPLETE: 'token/complete',
-  CROWD_LEVEL: 'crowd/level',
-  COUNTER_STATUS: 'counter/status',
-  SEAT_STATUS: 'seat/status'
+  TOKEN_NO_SHOW: 'token/no-show',
+  CROWD_EVENT: 'crowd/event',   // { type: 'IN' | 'OUT', source }  — raw IN/OUT events
+  CROWD_LEVEL: 'crowd/level',   // { level, occupancy, totalIn, totalOut, timestamp } — derived state
+  COUNTER_STATUS: 'counter/status'
 };
 
-// Handlers get registered from other files (avoids circular imports)
+// Several handlers can listen to the same topic (registered from different files)
 const messageHandlers = {};
 
 function onTopic(topic, handler) {
-  messageHandlers[topic] = handler;
+  if (!messageHandlers[topic]) messageHandlers[topic] = [];
+  messageHandlers[topic].push(handler);
 }
 
 client.on('connect', () => {
@@ -28,15 +30,24 @@ client.on('connect', () => {
 });
 
 client.on('message', (topic, message) => {
-  const handler = messageHandlers[topic];
-  if (handler) {
+  const handlers = messageHandlers[topic];
+  if (!handlers || handlers.length === 0) return;
+
+  let payload;
+  try {
+    payload = JSON.parse(message.toString());
+  } catch (err) {
+    console.error(`Invalid JSON on ${topic}:`, err.message);
+    return;
+  }
+
+  handlers.forEach((handler) => {
     try {
-      const payload = JSON.parse(message.toString());
       handler(payload);
     } catch (err) {
       console.error(`Error handling message on ${topic}:`, err.message);
     }
-  }
+  });
 });
 
 client.on('error', (err) => {

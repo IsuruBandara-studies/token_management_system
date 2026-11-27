@@ -28,8 +28,13 @@ export const deleteService = (id) => api.delete(`/services/${id}`);
 export const getCounters = () => api.get('/counters');
 export const createCounter = (data) => api.post('/counters', data);
 
+// Crowd (IN/OUT counter)
+export const getCrowd = () => api.get('/crowd');
+export const resetCrowd = () => api.post('/crowd/reset');
+
 // Tokens
 export const createToken = (data) => api.post('/tokens', data);
 export const getQueue = () => api.get('/tokens/queue');
 export const callNext = (counterId) => api.post('/tokens/call-next', { counterId });
 export const completeToken = (tokenId) => api.post('/tokens/complete', { tokenId });
+export const noShowToken = (tokenId) => api.post('/tokens/no-show', { tokenId });

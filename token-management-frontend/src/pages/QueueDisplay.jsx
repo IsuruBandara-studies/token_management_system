@@ -35,6 +35,7 @@ function QueueDisplay() {
       TOPICS.TOKEN_NEW,
       TOPICS.TOKEN_CALL,
       TOPICS.TOKEN_COMPLETE,
+      TOPICS.TOKEN_NO_SHOW,
       TOPICS.CROWD_LEVEL
     ];
 

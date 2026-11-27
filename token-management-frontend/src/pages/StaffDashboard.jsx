@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
-  getCounters, createCounter, callNext, completeToken, getQueue,
+  getCounters, createCounter, callNext, completeToken, noShowToken, getQueue,
   getServices, createService, updateService, deleteService
 } from '../api/api';
 import { socket, TOPICS } from '../socket/socket';
+import CrowdMeter from '../components/CrowdMeter';
 
 function StaffDashboard() {
   const [counters, setCounters] = useState([]);
   const [queue, setQueue] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [actionError, setActionError] = useState('');
-  // Live seat-sensor state keyed by counterNumber: { [counterNumber]: 'empty' | 'occupied' }
-  const [seatStates, setSeatStates] = useState({});
 
   // Add-counter state
   const [newCounterNumber, setNewCounterNumber] = useState('');
@@ -55,7 +54,12 @@ function StaffDashboard() {
     fetchQueue();
     fetchServices();
 
-    const refreshEvents = [TOPICS.TOKEN_NEW, TOPICS.TOKEN_CALL, TOPICS.TOKEN_COMPLETE];
+    const refreshEvents = [
+      TOPICS.TOKEN_NEW,
+      TOPICS.TOKEN_CALL,
+      TOPICS.TOKEN_COMPLETE,
+      TOPICS.TOKEN_NO_SHOW
+    ];
     const refreshAll = () => {
       fetchCounters();
       fetchQueue();
@@ -67,19 +71,9 @@ function StaffDashboard() {
     };
     socket.on(TOPICS.COUNTER_STATUS, handleRecommendation);
 
-    // IoT seat sensor: track live empty/occupied per counter, and refresh the
-    // board since an 'empty' event triggers an auto-complete + auto-call on the backend.
-    const handleSeatStatus = (payload) => {
-      if (!payload || payload.counterNumber == null) return;
-      setSeatStates((prev) => ({ ...prev, [payload.counterNumber]: payload.state }));
-      refreshAll();
-    };
-    socket.on(TOPICS.SEAT_STATUS, handleSeatStatus);
-
     return () => {
       refreshEvents.forEach((topic) => socket.off(topic, refreshAll));
       socket.off(TOPICS.COUNTER_STATUS, handleRecommendation);
-      socket.off(TOPICS.SEAT_STATUS, handleSeatStatus);
     };
   }, []);
 
@@ -103,6 +97,18 @@ function StaffDashboard() {
       fetchQueue();
     } catch (err) {
       setActionError(err.response?.data?.error || 'Failed to complete.');
+    }
+  };
+
+  const handleNoShow = async (token) => {
+    if (!window.confirm(`Mark token #${token.tokenNumber} as no-show? The customer will be removed from the queue.`)) return;
+    setActionError('');
+    try {
+      await noShowToken(token._id);
+      fetchCounters();
+      fetchQueue();
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'Failed to mark no-show.');
     }
   };
 
@@ -243,7 +249,12 @@ function StaffDashboard() {
           </div>
         )}
 
-        {/* --- Counters + occupancy (moved to top) --- */}
+        {/* --- Live people counter from the entrance sensor --- */}
+        <section className="mb-6">
+          <CrowdMeter />
+        </section>
+
+        {/* --- Counters --- */}
         <section className="mb-6">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-800">Counters</h2>
@@ -277,25 +288,6 @@ function StaffDashboard() {
                     Counter {counter.counterNumber}
                   </h3>
                   <div className="flex items-center gap-2">
-                    {seatStates[counter.counterNumber] && (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                          seatStates[counter.counterNumber] === 'empty'
-                            ? 'bg-sky-100 text-sky-700'
-                            : 'bg-orange-100 text-orange-700'
-                        }`}
-                        title="Live seat sensor"
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            seatStates[counter.counterNumber] === 'empty'
-                              ? 'bg-sky-500'
-                              : 'bg-orange-500'
-                          }`}
-                        />
-                        Seat {seatStates[counter.counterNumber]}
-                      </span>
-                    )}
                     <span
                       className={`badge ${
                         counter.status === 'idle' ? 'badge-status-idle' : 'badge-status-busy'
@@ -339,12 +331,13 @@ function StaffDashboard() {
                   <th className="px-4 py-2.5">Token #</th>
                   <th className="px-4 py-2.5">Service</th>
                   <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {calledTokens.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-4 text-center text-slate-400">
+                    <td colSpan={5} className="px-4 py-4 text-center text-slate-400">
                       No counters currently serving a customer
                     </td>
                   </tr>
@@ -360,6 +353,11 @@ function StaffDashboard() {
                       <td className="px-4 py-2.5 text-slate-600">{t.service.name}</td>
                       <td className="px-4 py-2.5">
                         <span className="badge badge-status-busy">In Service</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => handleNoShow(t)} className="btn-danger">
+                          No-show
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -379,12 +377,13 @@ function StaffDashboard() {
                   <th className="px-4 py-2.5">Token #</th>
                   <th className="px-4 py-2.5">Service</th>
                   <th className="px-4 py-2.5 text-right">Priority Score</th>
+                  <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {waitingTokens.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-4 text-center text-slate-400">
+                    <td colSpan={5} className="px-4 py-4 text-center text-slate-400">
                       No customers waiting
                     </td>
                   </tr>
@@ -398,6 +397,11 @@ function StaffDashboard() {
                       <td className="px-4 py-2.5 text-slate-600">{t.service.name}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-slate-700">
                         {t.priorityScore}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => handleNoShow(t)} className="btn-danger">
+                          No-show
+                        </button>
                       </td>
                     </tr>
                   ))
