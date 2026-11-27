@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  getCounters, createCounter, callNext, completeToken, getQueue,
+  getCounters, createCounter, callNext, completeToken, noShowToken, getQueue,
   getServices, createService, updateService, deleteService
 } from '../api/api';
 import { socket, TOPICS } from '../socket/socket';
@@ -54,7 +54,12 @@ function StaffDashboard() {
     fetchQueue();
     fetchServices();
 
-    const refreshEvents = [TOPICS.TOKEN_NEW, TOPICS.TOKEN_CALL, TOPICS.TOKEN_COMPLETE];
+    const refreshEvents = [
+      TOPICS.TOKEN_NEW,
+      TOPICS.TOKEN_CALL,
+      TOPICS.TOKEN_COMPLETE,
+      TOPICS.TOKEN_NO_SHOW
+    ];
     const refreshAll = () => {
       fetchCounters();
       fetchQueue();
@@ -92,6 +97,18 @@ function StaffDashboard() {
       fetchQueue();
     } catch (err) {
       setActionError(err.response?.data?.error || 'Failed to complete.');
+    }
+  };
+
+  const handleNoShow = async (token) => {
+    if (!window.confirm(`Mark token #${token.tokenNumber} as no-show? The customer will be removed from the queue.`)) return;
+    setActionError('');
+    try {
+      await noShowToken(token._id);
+      fetchCounters();
+      fetchQueue();
+    } catch (err) {
+      setActionError(err.response?.data?.error || 'Failed to mark no-show.');
     }
   };
 
@@ -234,7 +251,7 @@ function StaffDashboard() {
 
         {/* --- Live people counter from the entrance sensor --- */}
         <section className="mb-6">
-          <CrowdMeter variant="light" showReset />
+          <CrowdMeter />
         </section>
 
         {/* --- Counters --- */}
@@ -314,12 +331,13 @@ function StaffDashboard() {
                   <th className="px-4 py-2.5">Token #</th>
                   <th className="px-4 py-2.5">Service</th>
                   <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {calledTokens.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-4 text-center text-slate-400">
+                    <td colSpan={5} className="px-4 py-4 text-center text-slate-400">
                       No counters currently serving a customer
                     </td>
                   </tr>
@@ -335,6 +353,11 @@ function StaffDashboard() {
                       <td className="px-4 py-2.5 text-slate-600">{t.service.name}</td>
                       <td className="px-4 py-2.5">
                         <span className="badge badge-status-busy">In Service</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => handleNoShow(t)} className="btn-danger">
+                          No-show
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -354,12 +377,13 @@ function StaffDashboard() {
                   <th className="px-4 py-2.5">Token #</th>
                   <th className="px-4 py-2.5">Service</th>
                   <th className="px-4 py-2.5 text-right">Priority Score</th>
+                  <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {waitingTokens.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-4 py-4 text-center text-slate-400">
+                    <td colSpan={5} className="px-4 py-4 text-center text-slate-400">
                       No customers waiting
                     </td>
                   </tr>
@@ -373,6 +397,11 @@ function StaffDashboard() {
                       <td className="px-4 py-2.5 text-slate-600">{t.service.name}</td>
                       <td className="px-4 py-2.5 text-right font-mono text-slate-700">
                         {t.priorityScore}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button onClick={() => handleNoShow(t)} className="btn-danger">
+                          No-show
+                        </button>
                       </td>
                     </tr>
                   ))

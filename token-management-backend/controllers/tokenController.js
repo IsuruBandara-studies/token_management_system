@@ -166,6 +166,52 @@ async function completeTokenById(tokenId) {
   return { token };
 }
 
+// --- Core: mark a waiting/called token as no-show (customer left without being served) ---
+async function markNoShowById(tokenId) {
+  const token = await Token.findById(tokenId);
+  if (!token) return { error: 'Token not found', code: 404 };
+  if (token.status !== 'waiting' && token.status !== 'called') {
+    return { error: `Token is already ${token.status}`, code: 400 };
+  }
+
+  token.status = 'no-show';
+  token.completedAt = new Date();
+  await token.save();
+
+  // If it was at a counter, free that counter
+  if (token.counter) {
+    const counter = await Counter.findById(token.counter);
+    if (counter && counter.currentToken && counter.currentToken.toString() === token._id.toString()) {
+      counter.status = 'idle';
+      counter.currentToken = null;
+      counter.lastActivityAt = new Date();
+      await counter.save();
+    }
+  }
+
+  client.publish(TOPICS.TOKEN_NO_SHOW, JSON.stringify({
+    tokenId: token._id,
+    tokenNumber: token.tokenNumber
+  }));
+
+  // The customer has left the building: count them OUT
+  publishEvent('OUT', 'no-show');
+
+  return { token };
+}
+
+// --- Mark a token as no-show (HTTP) ---
+exports.markNoShow = async (req, res) => {
+  try {
+    const { tokenId } = req.body;
+    const result = await markNoShowById(tokenId);
+    if (result.error) return res.status(result.code).json({ error: result.error });
+    res.json(result.token);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+};
+
 // --- Call the next customer to a specific counter (HTTP) ---
 exports.callNext = async (req, res) => {
   try {

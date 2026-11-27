@@ -37,3 +37,4 @@ export const createToken = (data) => api.post('/tokens', data);
 export const getQueue = () => api.get('/tokens/queue');
 export const callNext = (counterId) => api.post('/tokens/call-next', { counterId });
 export const completeToken = (tokenId) => api.post('/tokens/complete', { tokenId });
+export const noShowToken = (tokenId) => api.post('/tokens/no-show', { tokenId });

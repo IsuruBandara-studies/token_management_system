@@ -6,6 +6,7 @@ const TOPICS = {
   TOKEN_NEW: 'token/new',
   TOKEN_CALL: 'token/call',
   TOKEN_COMPLETE: 'token/complete',
+  TOKEN_NO_SHOW: 'token/no-show',
   CROWD_EVENT: 'crowd/event',   // { type: 'IN' | 'OUT', source }  — raw IN/OUT events
   CROWD_LEVEL: 'crowd/level',   // { level, occupancy, totalIn, totalOut, timestamp } — derived state
   COUNTER_STATUS: 'counter/status'

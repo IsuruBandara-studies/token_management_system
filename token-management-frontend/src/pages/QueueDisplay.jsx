@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getQueue } from '../api/api';
 import { socket, TOPICS } from '../socket/socket';
-import CrowdMeter from '../components/CrowdMeter';
 
 const crowdBadgeClass = {
   LOW: 'badge-crowd-low',
@@ -36,6 +35,7 @@ function QueueDisplay() {
       TOPICS.TOKEN_NEW,
       TOPICS.TOKEN_CALL,
       TOPICS.TOKEN_COMPLETE,
+      TOPICS.TOKEN_NO_SHOW,
       TOPICS.CROWD_LEVEL
     ];
 
@@ -82,10 +82,6 @@ function QueueDisplay() {
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-6 sm:px-10 sm:py-8">
-        <div className="mb-6">
-          <CrowdMeter variant="dark" />
-        </div>
-
         {queue.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-queue-border bg-queue-panel/50 py-24 text-center">
             <div className="mb-4 text-5xl opacity-30">—</div>
